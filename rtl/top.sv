@@ -1,3 +1,4 @@
+`include "definitions.svh"
 `timescale 1ns / 1ps
 
 module top (
@@ -27,6 +28,8 @@ module top (
         mul_temp = 32'b0;
 
         case (instr_op)
+
+            /*********** Arithematic instructions ***********/
             MOVSGPR: alu_out = SGPR;
             
             MOV:     alu_out = (`imm_mode(IR)) ? `isrc(IR) : GPR[`rsrc1(IR)];
@@ -39,6 +42,21 @@ module top (
                 mul_temp = (`imm_mode(IR)) ? (GPR[`rsrc1(IR)] * `isrc(IR)) : (GPR[`rsrc1(IR)] * GPR[`rsrc2(IR)]);
                 alu_out  = mul_temp[15:0];
             end
+
+            /********** Logical instructions ***********/
+            OR_op:   alu_out = (`imm_mode(IR)) ? (GPR[`rsrc1(IR)] | `isrc(IR)) : (GPR[`rsrc1(IR)] | GPR[`rsrc2(IR)]);
+
+            AND_op:  alu_out = (`imm_mode(IR)) ? (GPR[`rsrc1(IR)] & `isrc(IR)) : (GPR[`rsrc1(IR)] & GPR[`rsrc2(IR)]);
+
+            XOR_op:  alu_out = (`imm_mode(IR)) ? (GPR[`rsrc1(IR)] ^ `isrc(IR)) : (GPR[`rsrc1(IR)] ^ GPR[`rsrc2(IR)]);
+
+            XNOR_op: alu_out = (`imm_mode(IR)) ? ~(GPR[`rsrc1(IR)] ^ `isrc(IR)) : ~(GPR[`rsrc1(IR)] ^ GPR[`rsrc2(IR)]);
+
+            NAND_op: alu_out = (`imm_mode(IR)) ? ~(GPR[`rsrc1(IR)] & `isrc(IR)) : ~(GPR[`rsrc1(IR)] & GPR[`rsrc2(IR)]);
+
+            NOR_op:  alu_out = (`imm_mode(IR)) ? ~(GPR[`rsrc1(IR)] | `isrc(IR)) : ~(GPR[`rsrc1(IR)] | GPR[`rsrc2(IR)]);
+            
+            NOT_op:  alu_out = ~GPR[`rsrc1(IR)];
             
             default: alu_out = 16'b0;
         endcase
@@ -64,3 +82,4 @@ module top (
     end
 
 endmodule
+
