@@ -1,123 +1,191 @@
 `include "definitions.svh"
-`timescale 1ns / 1ps
+`timescale 1ns/1ps 
 
-module top (
-    input  logic        clk,    // System Clock
-    input  logic        rst_n,  // Active-low Reset
-    input  logic [31:0] IR      // Instruction Register
+module top(
+    input   logic           clk,
+    input   logic           rst_n,
+    input   logic [15:0]    dataIn,
+    output  logic [15:0]    dataOut
 );
 
-    // --- 2. Extract Fields using casting to our new type ---
-    op_t        instr_op;
-    assign      instr_op = op_t'(IR[31:27]); // Casting bits to our Enum type
+    // 1. ---- Storage Eements ---- //
+    logic [31:0]    instMem [15:0];     // Instruction memory
+    logic [15:0]    dataMem [2^16-1:0];     // Data memory]
+    logic [15:0]    GPR     [31:0];         // General Purpose Registers]
+    logic [15:0]    SGPR;               // Special Purpose Register
 
-    // --- 3. Internal Storage ---
-    logic [15:0] GPR [31:0];   // General Purpose Registers
-    logic [15:0] SGPR;         // Special Multiplier Register
-    logic [7:0] StatusReg;     // Status Register [3:Carry, 2:Overflow 1:Zero, 0:Sign]
+    // statusReg bits: [3]:Carry, [2]:Zero, [1]:Overflow, [0]:Sign
+    logic [3:0]     statusReg;    
 
-    // Intermediate signals
-    logic [15:0] alu_out;
-    logic [31:0] mul_temp;
-    logic [16:0] carry_check;
-    logic ov_flag,s_flag,z_flag,c_flag;
-    logic update_flags;
+    // Temporary latches for Carry/Overflow (calculated only during Execute)
+    logic           c_latch, ov_latch;
 
+    // 2. ---- Pipeline/state Registers
+    logic [31:0]    IR;                 // Instruction Register
+    logic [3:0]     PC;                 // Program Counter
+    logic [2:0]     cycleCount;         // Cycle Counter
+    logic [15:0]    op_a,op_b;          // Latched Operands
+    logic [15:0]    alu_reg;            // Latched ALU Result
+    logic [31:0]    mul_reg;            // Latched Multiplier Result
 
-    // --- 4. Operands ---
-    logic [15:0] op_a,op_b;
-    assign op_a = GPR[`rsrc1(IR)];
-    assign op_b = (`imm_mode(IR)) ? `isrc(IR) : GPR[`rsrc2(IR)];
+    // --- ALU Combinational wires
+    logic [15:0] aluResultWire;
+    logic [31:0] mulResultWire;
+    logic carryWire;
+    logic overflowWire;
 
-    // --- 5. Combinational ALU ---
-    // Logic calculates based on current inputs
-    // [Image of ALU with control unit and registers]
-    always_comb begin
-        // Default assignments to prevent latches
-        alu_out  = 16'b0;
-        mul_temp = 32'b0;
-        carry_check = 17'b0;
-        ov_flag = 1'b0;
-        update_flags = 1'b1; //Most instructions update flags
-        
+    initial begin : READ_INSTRUCTIONS
+        $readmemb("instructionData.mem", instMem,0);
+    end : READ_INSTRUCTIONS
 
-        case (instr_op)
+    localparam logic [2:0] FETCH = 0 , DECODE = 1, EXECUTE = 2, MEMORY = 3, WRITEBACK = 4;
 
-            /*********** Arithematic instructions ***********/
-            MOVSGPR: begin 
-                alu_out = SGPR;
-                update_flags = 1'b0;
-            end 
-            
-            MOV:     begin 
-                alu_out = op_b;
-                update_flags = 1'b0;
-            end 
-            
-            ADD:     begin
-                carry_check = {1'b0,op_a} + {1'b0,op_b};
-                alu_out = carry_check[15:0];
-                ov_flag = (op_a[15] == op_b[15]) & (op_a[15] != alu_out[15]);
-            end 
-            
-            SUB:     begin
-                carry_check = {1'b0,op_a} - {1'b0,op_b};
-                alu_out = carry_check[15:0];
-                ov_flag = (op_a[15] != op_b[15]) & (op_a[15] != alu_out[15]);
-            end 
-            
-            MUL: begin
-                mul_temp = (`imm_mode(IR)) ? (GPR[`rsrc1(IR)] * `isrc(IR)) : (GPR[`rsrc1(IR)] * GPR[`rsrc2(IR)]);
-                alu_out  = mul_temp[15:0];
+    op_t instr_op;
+    assign instr_op = op_t'(IR[31:27]);
+
+    // 3. --- Combinational ALU core (For Mathematics)
+    always_comb begin : ALU_CORE
+        aluResultWire   = 16'h0000;
+        mulResultWire   = 32'h00000000;
+        carryWire       = 1'b0;
+        overflowWire    = 1'b0;
+
+        case(instr_op)
+            MOV     :   aluResultWire = op_b;
+            MOVSGPR :   aluResultWire = SGPR;
+
+            ADD     :   begin
+                        {carryWire,aluResultWire} = op_a + op_b;
+                        overflowWire = (op_a[15] == op_b[15]) && (op_a[15] != aluResultWire[15]);
             end
 
-            /********** Logical instructions ***********/
-            OR_op:   alu_out = op_a | op_b;
+            SUB     :   begin
+                        {carryWire,aluResultWire} = op_a - op_b;
+                        overflowWire = (op_a[15] != op_b[15]) && (op_a[15] == aluResultWire[15]);
+            end
 
-            AND_op:  alu_out = op_a & op_b;
+            MUL     :   begin
+                        mulResultWire = op_a * op_b;
+                        aluResultWire = mulResultWire[15:0];
+            end
 
-            XOR_op:  alu_out = op_a ^ op_b;
+            OR_op   :   aluResultWire = op_a | op_b; 
+            AND_op  :   aluResultWire = op_a & op_b; 
+            XOR_op  :   aluResultWire = op_a ^ op_b;
+            XNOR_op :   aluResultWire = ~(op_a ^ op_b);
+            NAND_op :   aluResultWire = ~(op_a & op_b); 
+            NOR_op  :   aluResultWire = ~(op_a | op_b); 
+            NOT_op  :   aluResultWire = ~op_a; 
+            default :   aluResultWire = 16'h0000;
 
-            XNOR_op: alu_out = ~(op_a ^ op_b);
+        endcase 
 
-            NAND_op: alu_out = ~(op_a & op_b);
+    end : ALU_CORE
 
-            NOR_op:  alu_out = ~(op_a | op_b);
-            
-            NOT_op:  alu_out = ~op_a;
-            
-            default: begin 
-                alu_out = 16'b0;
-                update_flags = 1'b0;
-            end 
-        endcase
 
-        s_flag = alu_out[15];
-        z_flag = (alu_out == 16'b0);
-        c_flag = carry_check[16];
-    end
+    // 4. ---- Segregated State Machine ----
 
-    // --- 7. Sequential Register File ---
-    // Values are "saved" only on the rising clock edge
-    
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @( posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            // Reset all 32 registers and SGPR
-            for (int i = 0; i < 32; i++) GPR[i] <= 16'h0000;
-            SGPR <= 16'h0000;
-            StatusReg <= 4'b0000;
+            // --- Control State Reseter --- //
+            cycleCount  <= FETCH;
+            PC          <= 4'h0;
+            IR          <= 32'h00000000;
+
+            // --- Internal Pipeline Registers Reset --- //
+            op_a        <= 16'h0000;
+            op_b        <= 16'h0000;
+            alu_reg     <= 16'h0000;
+            mul_reg     <= 32'h00000000;
+
+            // Status latches reset
+            c_latch      <= 0;
+            ov_latch     <= 0;
+
+            // --- Architecture State Reset --- //
+            dataOut     <= 16'h0000;
+            statusReg   <= 4'h0;
+            SGPR        <= 16'h0000;
+
+            for(int i = 0 ; i < 32 ; i++) GPR[i] <= 16'h0000;
+
         end else begin
-            // Write ALU result to the destination register
-            GPR[`rdst(IR)] <= alu_out;
-            
-            // If the instruction was a Multiply, update the Special Register
-            if (instr_op == MUL) SGPR <= mul_temp[31:16];
+            case (cycleCount)
+                // Cycle 0 : FETCH
+                FETCH : begin
+                    IR          <= instMem[PC];
+                    cycleCount  <= DECODE;
+                end
 
-            // Update Status Register
-            if(update_flags) StatusReg <= {ov_flag,s_flag,z_flag,c_flag};
+                // Cycle 1 : DECODE
+                DECODE : begin 
+                    op_a        <= GPR[`rsrc1(IR)];
+                    op_b        <= `imm_mode(IR) ? `isrc(IR) : GPR[`rsrc2(IR)];
+                    cycleCount  <= EXECUTE;
+                end 
 
-        end
-    end
+                // Cycle 2 : EXECUTE (ALU)
+                EXECUTE : begin
+                    alu_reg <= aluResultWire;
+                    mul_reg <= mulResultWire;       
+                    c_latch <= carryWire;
+                    ov_latch <= overflowWire;
+                    
+                    cycleCount <= MEMORY;
+                end 
+
+                // Cycle 3 : MEMORY
+                MEMORY : begin  
+                    case(instr_op)
+                        IN      : dataMem[`isrc(IR)] <= dataIn;
+                        OUT     : dataOut <= dataMem[`isrc(IR)];
+                        LOAD    : alu_reg <= dataMem[`isrc(IR)];
+                        STORE   : dataMem[`isrc(IR)] <= GPR[`rsrc1(IR)];
+                    endcase
+                    cycleCount <= WRITEBACK;
+                end 
+
+                // Cycle 4 : WRITEBACK
+                WRITEBACK : begin
+                    if(isWriteBackInstruction(instr_op)) GPR[`rdst(IR)] <= alu_reg;
+                    if(instr_op == MUL) SGPR <= mul_reg[31:16];
+
+                    // UPDATE STATUS REGISTER DIRECTLY
+                    // [3]: Carry (latched)
+                    // [2]: Zero (check 32-bit for MUL, 16-bit for others)
+                    // [1]: Overflow (latched)
+                    // [0]: Sign (check bit 31 for MUL, 15 for others)
+                    
+                    statusReg[3] <= c_latch;
+                    statusReg[2] <= (instr_op == MUL) ? (mul_reg == 32'h0) : (alu_reg == 16'h0);
+                    statusReg[1] <= ov_latch;
+                    statusReg[0] <= (instr_op == MUL) ? mul_reg[31] : alu_reg[15];
+                    
+                    PC <= PC + 1;
+                    cycleCount <= FETCH;
+                end 
+            endcase
+        end 
+    end 
+
+    // Helper function to identify instructions that write to GPR
+    function automatic logic isWriteBackInstruction(op_t op);
+    case(op)
+        // Arithmetic & Move
+        ADD, SUB, MUL, MOV, MOVSGPR, 
+        // Memory Load
+        LOAD, 
+        // Logical Operations (All must be here)
+        AND_op, OR_op, XOR_op, NOT_op, NAND_op, NOR_op, XNOR_op: 
+            return 1'b1;
+        
+        default: 
+            return 1'b0;
+    endcase
+endfunction
 
 endmodule
+
+
+
 

@@ -21,7 +21,13 @@ typedef enum logic [4:0] {
     XNOR_op    = 5'b01000,
     NAND_op    = 5'b01001,
     NOR_op     = 5'b01010,
-    NOT_op     = 5'b01011
+    NOT_op     = 5'b01011,
+
+    /******** Load and Store instructions ********/
+    STORE   = 5'b01100,  // Store content of register in data memory    (REG ----> MEM)
+    IN      = 5'b01101,  // Load content of din bus in data memory      (DIN ----> MEM)
+    OUT     = 5'b01110,  // Store content of data memory to dout bus    (MEM ----> DOUT)
+    LOAD    = 5'b01111 // Load content of data memory in register     (MEM ----> REG)
 
     } op_t;
 
