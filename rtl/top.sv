@@ -170,19 +170,19 @@ module top(
 
     // Helper function to identify instructions that write to GPR
     function automatic logic isWriteBackInstruction(op_t op);
-    case(op)
-        // Arithmetic & Move
-        ADD, SUB, MUL, MOV, MOVSGPR, 
-        // Memory Load
-        LOAD, 
-        // Logical Operations (All must be here)
-        AND_op, OR_op, XOR_op, NOT_op, NAND_op, NOR_op, XNOR_op: 
-            return 1'b1;
-        
-        default: 
-            return 1'b0;
-    endcase
-endfunction
+        case(op)
+            // Arithmetic & Move
+            ADD, SUB, MUL, MOV, MOVSGPR, 
+            // Memory Load
+            LOAD, 
+            // Logical Operations (All must be here)
+            AND_op, OR_op, XOR_op, NOT_op, NAND_op, NOR_op, XNOR_op: 
+                return 1'b1;
+            
+            default: 
+                return 1'b0;
+        endcase
+    endfunction
 
 endmodule
 
