@@ -35,7 +35,8 @@ module top(
     logic overflowWire;
 
     initial begin : READ_INSTRUCTIONS
-        $readmemb("instructionData.mem", instMem,0);
+        #1; // Delay to allow testbench to write the memory file
+        $readmemb("instructionData.mem", instMem,  0, 6);
     end : READ_INSTRUCTIONS
 
     localparam logic [2:0] FETCH = 0 , DECODE = 1, EXECUTE = 2, MEMORY = 3, WRITEBACK = 4;
