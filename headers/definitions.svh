@@ -36,7 +36,7 @@ typedef enum logic [4:0] {
 `define rsrc1(instr)     (instr[21:17])
 `define imm_mode(instr)  (instr[16])
 `define rsrc2(instr)     (instr[15:11])
-`define isrc(instr)      (instr[15:0])
+`define isrc(instr)      (instr[3:0])
 
 `endif // DEFINITIONS_SVH
 

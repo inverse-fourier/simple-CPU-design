@@ -10,7 +10,7 @@ module top(
 
     // 1. ---- Storage Eements ---- //
     logic [31:0]    instMem [15:0];     // Instruction memory
-    logic [15:0]    dataMem [2^16-1:0];     // Data memory]
+    logic [15:0]    dataMem [15:0];     // Data memory]
     logic [15:0]    GPR     [31:0];         // General Purpose Registers]
     logic [15:0]    SGPR;               // Special Purpose Register
 
@@ -36,7 +36,7 @@ module top(
 
     initial begin : READ_INSTRUCTIONS
         #1; // Delay to allow testbench to write the memory file
-        $readmemb("instructionData.mem", instMem,  0, 6);
+        $readmemb("instructionData.mem", instMem,  0, 3);
     end : READ_INSTRUCTIONS
 
     localparam logic [2:0] FETCH = 0 , DECODE = 1, EXECUTE = 2, MEMORY = 3, WRITEBACK = 4;
@@ -148,20 +148,22 @@ module top(
 
                 // Cycle 4 : WRITEBACK
                 WRITEBACK : begin
-                    if(isWriteBackInstruction(instr_op)) GPR[`rdst(IR)] <= alu_reg;
+                    if(isWriteBackInstruction(instr_op)) begin 
+                        GPR[`rdst(IR)] <= alu_reg;
+
+                        // UPDATE STATUS REGISTER DIRECTLY
+                        // [3]: Carry (latched)
+                        // [2]: Zero (check 32-bit for MUL, 16-bit for others)
+                        // [1]: Overflow (latched)
+                        // [0]: Sign (check bit 31 for MUL, 15 for others)
+                        statusReg[3] <= c_latch;
+                        statusReg[2] <= (instr_op == MUL) ? (mul_reg == 32'h0) : (alu_reg == 16'h0);
+                        statusReg[1] <= ov_latch;
+                        statusReg[0] <= (instr_op == MUL) ? mul_reg[31] : alu_reg[15];
+                    end 
+            
                     if(instr_op == MUL) SGPR <= mul_reg[31:16];
 
-                    // UPDATE STATUS REGISTER DIRECTLY
-                    // [3]: Carry (latched)
-                    // [2]: Zero (check 32-bit for MUL, 16-bit for others)
-                    // [1]: Overflow (latched)
-                    // [0]: Sign (check bit 31 for MUL, 15 for others)
-                    
-                    statusReg[3] <= c_latch;
-                    statusReg[2] <= (instr_op == MUL) ? (mul_reg == 32'h0) : (alu_reg == 16'h0);
-                    statusReg[1] <= ov_latch;
-                    statusReg[0] <= (instr_op == MUL) ? mul_reg[31] : alu_reg[15];
-                    
                     PC <= PC + 1;
                     cycleCount <= FETCH;
                 end 
@@ -183,7 +185,7 @@ module top(
             default: 
                 return 1'b0;
         endcase
-    endfunction
+    endfunction     
 
 endmodule
 
