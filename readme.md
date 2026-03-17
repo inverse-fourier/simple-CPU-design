@@ -1,5 +1,6 @@
 # Simple CPU Design
 
+
 This is a simple CPU design implemented in SystemVerilog. The CPU has a 5-stage instruction cycle.
 
 ## Microarchitecture
