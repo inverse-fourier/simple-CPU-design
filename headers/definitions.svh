@@ -5,29 +5,40 @@
 typedef enum logic [4:0] {
 
     /*********** Arithematic instructions ***********/
-    MOVSGPR = 5'b00000,
-    MOV     = 5'b00001,
-    ADD     = 5'b00010,
-    SUB     = 5'b00011,
-    MUL     = 5'b00100,
-
-
+    MOVSGPR             = 5'b00000,
+    MOV                 = 5'b00001,
+    ADD                 = 5'b00010,
+    SUB                 = 5'b00011,
+    MUL                 = 5'b00100,
 
 /********** Logical instructions ***********/
 
-    OR_op      = 5'b00101,
-    AND_op     = 5'b00110,
-    XOR_op     = 5'b00111,
-    XNOR_op    = 5'b01000,
-    NAND_op    = 5'b01001,
-    NOR_op     = 5'b01010,
-    NOT_op     = 5'b01011,
+    OR_op               = 5'b00101,
+    AND_op              = 5'b00110,
+    XOR_op              = 5'b00111,
+    XNOR_op             = 5'b01000,
+    NAND_op             = 5'b01001,
+    NOR_op              = 5'b01010,
+    NOT_op              = 5'b01011,
 
     /******** Load and Store instructions ********/
-    STORE   = 5'b01100,  // Store content of register in data memory    (REG ----> MEM)
-    IN      = 5'b01101,  // Load content of din bus in data memory      (DIN ----> MEM)
-    OUT     = 5'b01110,  // Store content of data memory to dout bus    (MEM ----> DOUT)
-    LOAD    = 5'b01111 // Load content of data memory in register     (MEM ----> REG)
+    STORE               = 5'b01100,  // Store content of register in data memory    (REG ----> MEM)
+    IN                  = 5'b01101,  // Load content of din bus in data memory      (DIN ----> MEM)
+    OUT                 = 5'b01110,  // Store content of data memory to dout bus    (MEM ----> DOUT)
+    LOAD                = 5'b01111, // Load content of data memory in register     (MEM ----> REG)
+
+    /*****************Jump and Branching Instructions*****************/
+    JUMP                = 5'b10000,
+    JMP_CARRY           = 5'b10001,
+    JMP_NO_CARRY        = 5'b10010,
+    JMP_ZERO            = 5'b10011,
+    JMP_NO_ZERO         = 5'b10100,
+    JMP_SIGN            = 5'b10101,
+    JMP_NO_SIGN         = 5'b10110,
+    JMP_OVERFLOW        = 5'b10111,
+    JMP_NO_OVERFLOW     = 5'b11000,
+    HALT                = 5'b11001
+
 
     } op_t;
 

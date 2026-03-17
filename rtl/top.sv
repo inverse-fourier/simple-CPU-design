@@ -164,7 +164,21 @@ module top(
             
                     if(instr_op == MUL) SGPR <= mul_reg[31:16];
 
-                    PC <= PC + 1;
+                    // PC Update Logic
+                    case(instr_op)
+                        JUMP            : PC <= `isrc(IR);
+                        JMP_CARRY       : if(statusReg[3]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_NO_CARRY    : if(!statusReg[3]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_ZERO        : if(statusReg[2]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_NO_ZERO     : if(!statusReg[2]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_SIGN        : if(statusReg[0]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_NO_SIGN     : if(!statusReg[0]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_OVERFLOW    : if(statusReg[1]) PC <= `isrc(IR); else PC <= PC + 1;
+                        JMP_NO_OVERFLOW : if(!statusReg[1]) PC <= `isrc(IR); else PC <= PC + 1;
+                        HALT            : PC <= PC;
+                        default         : PC <= PC + 1;
+                    endcase
+                    
                     cycleCount <= FETCH;
                 end 
             endcase
